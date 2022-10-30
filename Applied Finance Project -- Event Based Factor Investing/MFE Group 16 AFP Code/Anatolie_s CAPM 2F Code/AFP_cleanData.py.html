@@ -1,0 +1,102 @@
+<html>
+<head>
+<title>AFP_cleanData.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cc7832;}
+.s1 { color: #a9b7c6;}
+.s2 { color: #6a8759;}
+.s3 { color: #6897bb;}
+.s4 { color: #fffb00;}
+</style>
+</head>
+<body bgcolor="#2b2b2b">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+AFP_cleanData.py</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">os</span>
+<span class="s0">import </span><span class="s1">pandas </span><span class="s0">as </span><span class="s1">pd</span>
+<span class="s0">import </span><span class="s1">numpy </span><span class="s0">as </span><span class="s1">np</span>
+<span class="s0">import </span><span class="s1">matplotlib</span>
+<span class="s0">import </span><span class="s1">matplotlib.pyplot </span><span class="s0">as </span><span class="s1">plt</span>
+<span class="s0">import </span><span class="s1">datetime</span>
+
+<span class="s1">data = pd.read_csv(</span><span class="s2">'afp_data_sample_1995_onward_v2.csv'</span><span class="s1">)</span>
+
+<span class="s2">&quot;&quot;&quot; 
+Format date columns 
+&quot;&quot;&quot;</span>
+<span class="s1">data[</span><span class="s2">'date'</span><span class="s1">] = pd.to_datetime(data[</span><span class="s2">'tradedate'</span><span class="s1">]</span><span class="s0">, </span><span class="s1">format=</span><span class="s2">'%Y%m%d'</span><span class="s0">, </span><span class="s1">errors=</span><span class="s2">'ignore'</span><span class="s1">)</span>
+<span class="s1">data[</span><span class="s2">'week'</span><span class="s1">] = (data[</span><span class="s2">'date'</span><span class="s1">] - datetime.datetime(</span><span class="s3">1900</span><span class="s0">, </span><span class="s3">1</span><span class="s0">, </span><span class="s3">1</span><span class="s1">)).dt.days // </span><span class="s3">7 </span><span class="s1">+ </span><span class="s3">1</span>
+
+<span class="s1">data = data.sort_values([</span><span class="s2">'osid'</span><span class="s0">, </span><span class="s2">'tradedate'</span><span class="s1">]).reset_index(drop=</span><span class="s0">True</span><span class="s1">).copy()</span>
+<span class="s1">data[</span><span class="s2">'pricepctchgd'</span><span class="s1">] = data[</span><span class="s2">'pricepctchgd'</span><span class="s1">] / </span><span class="s3">100  </span><span class="s4"># convert percentage returns to decimal returns</span>
+
+<span class="s1">data[</span><span class="s2">'cumret'</span><span class="s1">] = </span><span class="s3">0</span>
+<span class="s1">data[</span><span class="s2">'cumalpha'</span><span class="s1">] = </span><span class="s3">0</span>
+<span class="s0">for </span><span class="s1">i </span><span class="s0">in </span><span class="s1">range(</span><span class="s3">0</span><span class="s0">, </span><span class="s3">20</span><span class="s1">):  </span><span class="s4"># 0-19: 20 trading days ~ 4 weeks</span>
+    <span class="s1">print(i</span><span class="s0">, </span><span class="s1">end=</span><span class="s2">&quot;, &quot;</span><span class="s1">)  </span><span class="s4"># to keep track of slow loop</span>
+    <span class="s4"># FIRST, CHECK IF LAG WEEK == WEEK</span>
+    <span class="s1">data[</span><span class="s2">'r_shifted'</span><span class="s1">] = data[[</span><span class="s2">'osid'</span><span class="s0">, </span><span class="s2">'pricepctchgd'</span><span class="s1">]].groupby([</span><span class="s2">'osid'</span><span class="s1">])[</span><span class="s2">'pricepctchgd'</span><span class="s1">].shift(i)  </span><span class="s4"># group by OSID</span>
+    <span class="s1">data[</span><span class="s2">'alpha_shifted'</span><span class="s1">] = data[[</span><span class="s2">'osid'</span><span class="s0">, </span><span class="s2">'alpha'</span><span class="s1">]].groupby([</span><span class="s2">'osid'</span><span class="s1">])[</span><span class="s2">'alpha'</span><span class="s1">].shift(i)  </span><span class="s4"># group by OSID</span>
+
+    <span class="s1">data[</span><span class="s2">'cumret'</span><span class="s1">] = (</span><span class="s3">1 </span><span class="s1">+ data[</span><span class="s2">'cumret'</span><span class="s1">]) * (</span><span class="s3">1 </span><span class="s1">+ data[</span><span class="s2">'r_shifted'</span><span class="s1">]) - </span><span class="s3">1</span>
+    <span class="s1">data[</span><span class="s2">'cumalpha'</span><span class="s1">] = (</span><span class="s3">1 </span><span class="s1">+ data[</span><span class="s2">'cumalpha'</span><span class="s1">]) * (</span><span class="s3">1 </span><span class="s1">+ data[</span><span class="s2">'alpha_shifted'</span><span class="s1">]) - </span><span class="s3">1</span>
+
+    <span class="s0">if </span><span class="s1">i </span><span class="s0">in </span><span class="s1">[</span><span class="s3">5 </span><span class="s1">- </span><span class="s3">1</span><span class="s0">, </span><span class="s3">10 </span><span class="s1">- </span><span class="s3">1</span><span class="s0">, </span><span class="s3">15 </span><span class="s1">- </span><span class="s3">1</span><span class="s0">, </span><span class="s3">20 </span><span class="s1">- </span><span class="s3">1</span><span class="s1">]:</span>
+        <span class="s1">data[</span><span class="s2">'ret' </span><span class="s1">+ str(i + </span><span class="s3">1</span><span class="s1">) + </span><span class="s2">'d'</span><span class="s1">] = data[</span><span class="s2">'cumret'</span><span class="s1">]</span>
+        <span class="s1">data[</span><span class="s2">'cum_alpha' </span><span class="s1">+ str(i + </span><span class="s3">1</span><span class="s1">) + </span><span class="s2">'d'</span><span class="s1">] = data[</span><span class="s2">'cumalpha'</span><span class="s1">]</span>
+
+<span class="s1">data.drop([</span><span class="s2">'cumret'</span><span class="s0">, </span><span class="s2">'r_shifted'</span><span class="s0">, </span><span class="s2">'cumalpha'</span><span class="s0">, </span><span class="s2">'alpha_shifted'</span><span class="s1">]</span><span class="s0">, </span><span class="s1">axis=</span><span class="s3">1</span><span class="s0">, </span><span class="s1">inplace=</span><span class="s0">True</span><span class="s1">)</span>
+
+<span class="s1">data = data.sort_values([</span><span class="s2">'osid'</span><span class="s0">, </span><span class="s2">'tradedate'</span><span class="s1">]).reset_index(drop=</span><span class="s0">True</span><span class="s1">).copy()</span>
+
+<span class="s1">xx = list((data[</span><span class="s2">'date'</span><span class="s1">].diff(</span><span class="s3">1</span><span class="s1">)).dt.days &gt; </span><span class="s3">20</span><span class="s1">)</span>
+<span class="s1">yy = list((data[</span><span class="s2">'osid'</span><span class="s1">].diff(</span><span class="s3">1</span><span class="s1">)) == </span><span class="s3">0</span><span class="s1">)</span>
+<span class="s1">zz = [(a </span><span class="s0">and </span><span class="s1">b) </span><span class="s0">for </span><span class="s1">a</span><span class="s0">, </span><span class="s1">b </span><span class="s0">in </span><span class="s1">zip(xx</span><span class="s0">, </span><span class="s1">yy)]</span>
+
+<span class="s1">problem_rows = list(np.where(zz)[</span><span class="s3">0</span><span class="s1">])</span>
+
+<span class="s1">problem_rows2 = [i - </span><span class="s3">1 </span><span class="s0">for </span><span class="s1">i </span><span class="s0">in </span><span class="s1">problem_rows]</span>
+
+<span class="s1">problem_rows3 = np.sort(problem_rows + problem_rows2)</span>
+
+<span class="s1">data[</span><span class="s2">'index'</span><span class="s1">] = list(data.index)</span>
+<span class="s0">for </span><span class="s1">i </span><span class="s0">in </span><span class="s1">problem_rows:</span>
+    <span class="s0">for </span><span class="s1">j </span><span class="s0">in </span><span class="s1">range(</span><span class="s3">4</span><span class="s1">):  </span><span class="s4"># 0,1,2,3</span>
+        <span class="s0">if </span><span class="s1">((data[</span><span class="s2">'osid'</span><span class="s1">].diff(</span><span class="s3">1</span><span class="s1">))[i + j] == </span><span class="s3">0</span><span class="s1">):  </span><span class="s4"># make sure we are still in one unique OSID</span>
+            <span class="s1">data.loc[i + j</span><span class="s0">, </span><span class="s2">'ret5d'</span><span class="s1">] = np.nan</span>
+            <span class="s1">data.loc[i + j</span><span class="s0">, </span><span class="s2">'cum_alpha5d'</span><span class="s1">] = np.nan</span>
+
+    <span class="s0">for </span><span class="s1">j </span><span class="s0">in </span><span class="s1">range(</span><span class="s3">9</span><span class="s1">):  </span><span class="s4"># 0,1,2,3,...,8</span>
+        <span class="s0">if </span><span class="s1">((data[</span><span class="s2">'osid'</span><span class="s1">].diff(</span><span class="s3">1</span><span class="s1">))[i + j] == </span><span class="s3">0</span><span class="s1">):  </span><span class="s4"># make sure we are still in one unique OSID</span>
+            <span class="s1">data.loc[i + j</span><span class="s0">, </span><span class="s2">'ret10d'</span><span class="s1">] = np.nan</span>
+            <span class="s1">data.loc[i + j</span><span class="s0">, </span><span class="s2">'cum_alpha10d'</span><span class="s1">] = np.nan</span>
+
+    <span class="s0">for </span><span class="s1">j </span><span class="s0">in </span><span class="s1">range(</span><span class="s3">14</span><span class="s1">):  </span><span class="s4"># 0,1,2,3,...,13</span>
+        <span class="s0">if </span><span class="s1">((data[</span><span class="s2">'osid'</span><span class="s1">].diff(</span><span class="s3">1</span><span class="s1">))[i + j] == </span><span class="s3">0</span><span class="s1">):  </span><span class="s4"># make sure we are still in one unique OSID</span>
+            <span class="s1">data.loc[i + j</span><span class="s0">, </span><span class="s2">'ret15d'</span><span class="s1">] = np.nan</span>
+            <span class="s1">data.loc[i + j</span><span class="s0">, </span><span class="s2">'cum_alpha15d'</span><span class="s1">] = np.nan</span>
+
+    <span class="s0">for </span><span class="s1">j </span><span class="s0">in </span><span class="s1">range(</span><span class="s3">19</span><span class="s1">):  </span><span class="s4"># 0,1,2,3,...,19</span>
+        <span class="s0">if </span><span class="s1">((data[</span><span class="s2">'osid'</span><span class="s1">].diff(</span><span class="s3">1</span><span class="s1">))[i + j] == </span><span class="s3">0</span><span class="s1">):  </span><span class="s4"># make sure we are still in one unique OSID</span>
+            <span class="s1">data.loc[i + j</span><span class="s0">, </span><span class="s2">'ret20d'</span><span class="s1">] = np.nan</span>
+            <span class="s1">data.loc[i + j</span><span class="s0">, </span><span class="s2">'cum_alpha20d'</span><span class="s1">] = np.nan</span>
+
+
+<span class="s2">&quot;&quot;&quot; 
+Shrink dataset 
+&quot;&quot;&quot;</span>
+<span class="s1">data_smaller = data.copy()</span>
+<span class="s1">data_smaller = data_smaller[data_smaller[</span><span class="s2">'inuniverse'</span><span class="s1">] == </span><span class="s0">True</span><span class="s1">].reset_index(drop=</span><span class="s0">True</span><span class="s1">)</span>
+<span class="s1">data_smaller = data_smaller.sort_values([</span><span class="s2">'osid'</span><span class="s0">, </span><span class="s2">'tradedate'</span><span class="s1">]).reset_index(drop=</span><span class="s0">True</span><span class="s1">).copy()</span>
+
+<span class="s2">&quot;&quot;&quot; 
+Save data to pickle file 
+&quot;&quot;&quot;</span>
+<span class="s1">data_smaller.to_pickle(</span><span class="s2">&quot;./afp_data_formatted.pkl&quot;</span><span class="s1">)</span>
+</pre>
+</body>
+</html>
